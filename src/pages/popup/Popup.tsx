@@ -139,6 +139,7 @@ interface SettingsUpdate {
   quoteReplyEnabled?: boolean;
   ctrlEnterSendEnabled?: boolean;
   sidebarAutoHideEnabled?: boolean;
+  hideGeminiDisclaimerEnabled?: boolean;
 }
 
 export default function Popup() {
@@ -167,6 +168,7 @@ export default function Popup() {
   const [quoteReplyEnabled, setQuoteReplyEnabled] = useState<boolean>(true);
   const [ctrlEnterSendEnabled, setCtrlEnterSendEnabled] = useState<boolean>(false);
   const [sidebarAutoHideEnabled, setSidebarAutoHideEnabled] = useState<boolean>(false);
+  const [hideGeminiDisclaimerEnabled, setHideGeminiDisclaimerEnabled] = useState<boolean>(false);
   const [isAIStudio, setIsAIStudio] = useState<boolean>(false);
 
   useEffect(() => {
@@ -243,6 +245,8 @@ export default function Popup() {
         payload.gvCtrlEnterSend = settings.ctrlEnterSendEnabled;
       if (typeof settings.sidebarAutoHideEnabled === 'boolean')
         payload.gvSidebarAutoHide = settings.sidebarAutoHideEnabled;
+      if (typeof settings.hideGeminiDisclaimerEnabled === 'boolean')
+        payload.gvHideGeminiDisclaimer = settings.hideGeminiDisclaimerEnabled;
       void setSyncStorage(payload);
     },
     [setSyncStorage],
@@ -471,6 +475,7 @@ export default function Popup() {
           gvQuoteReplyEnabled: true,
           gvCtrlEnterSend: false,
           gvSidebarAutoHide: false,
+          gvHideGeminiDisclaimer: false,
         },
         (res) => {
           const m = res?.geminiTimelineScrollMode as ScrollMode;
@@ -497,6 +502,7 @@ export default function Popup() {
           setQuoteReplyEnabled(res?.gvQuoteReplyEnabled !== false);
           setCtrlEnterSendEnabled(res?.gvCtrlEnterSend === true);
           setSidebarAutoHideEnabled(res?.gvSidebarAutoHide === true);
+          setHideGeminiDisclaimerEnabled(res?.gvHideGeminiDisclaimer === true);
 
           // Reconcile stored custom websites with actual granted permissions.
           // If the user denied a permission request, the popup may have closed before we could revert storage.
@@ -962,6 +968,29 @@ export default function Popup() {
                 }}
               />
             </div>
+            {!isAIStudio && (
+              <div className="group flex items-center justify-between">
+                <div className="flex-1">
+                  <Label
+                    htmlFor="hide-gemini-disclaimer"
+                    className="group-hover:text-primary cursor-pointer text-sm font-medium transition-colors"
+                  >
+                    {t('hideGeminiDisclaimer')}
+                  </Label>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {t('hideGeminiDisclaimerHint')}
+                  </p>
+                </div>
+                <Switch
+                  id="hide-gemini-disclaimer"
+                  checked={hideGeminiDisclaimerEnabled}
+                  onChange={(e) => {
+                    setHideGeminiDisclaimerEnabled(e.target.checked);
+                    apply({ hideGeminiDisclaimerEnabled: e.target.checked });
+                  }}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
         {/* Folder Spacing */}

@@ -71,6 +71,7 @@ export const StorageKeys = {
 
   // Sidebar behavior
   GV_SIDEBAR_AUTO_HIDE: 'gvSidebarAutoHide',
+  GV_HIDE_GEMINI_DISCLAIMER: 'gvHideGeminiDisclaimer',
 
   // Folder spacing
   GV_FOLDER_SPACING: 'gvFolderSpacing',
