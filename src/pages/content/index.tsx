@@ -28,6 +28,7 @@ import { startRecentsHider } from './recentsHider/index';
 import { startSendBehavior } from './sendBehavior/index';
 import { startSidebarAutoHide } from './sidebarAutoHide';
 import { startSidebarWidthAdjuster } from './sidebarWidth';
+import { startSlashPromptPicker } from './slashPromptPicker/index';
 import { startTimeline } from './timeline/index';
 import { startTitleUpdater } from './titleUpdater';
 import { startWatermarkRemover } from './watermarkRemover/index';
@@ -66,6 +67,7 @@ let folderManagerInstance: Awaited<ReturnType<typeof startFolderManager>> | null
 let promptManagerInstance: Awaited<ReturnType<typeof startPromptManager>> | null = null;
 let quoteReplyCleanup: (() => void) | null = null;
 let sendBehaviorCleanup: (() => void) | null = null;
+let slashPromptPickerCleanup: (() => void) | null = null;
 
 /**
  * Check if current hostname matches any custom websites
@@ -146,6 +148,7 @@ async function initializeFeatures(): Promise<void> {
     if (isEnterprise) {
       console.log('[Gemini Voyager] Gemini Enterprise detected, starting Prompt Manager only');
       promptManagerInstance = await startPromptManager();
+      slashPromptPickerCleanup = startSlashPromptPicker().destroy;
       return;
     }
 
@@ -245,6 +248,10 @@ async function initializeFeatures(): Promise<void> {
       // Initialize Mermaid rendering (lightweight)
       startMermaid();
       await delay(LIGHT_FEATURE_INIT_DELAY);
+
+      if (location.hostname === 'gemini.google.com') {
+        slashPromptPickerCleanup = startSlashPromptPicker().destroy;
+      }
     }
 
     if (location.hostname === 'aistudio.google.com' || location.hostname === 'aistudio.google.cn') {
@@ -401,6 +408,10 @@ function handleVisibilityChange(): void {
         if (sendBehaviorCleanup) {
           sendBehaviorCleanup();
           sendBehaviorCleanup = null;
+        }
+        if (slashPromptPickerCleanup) {
+          slashPromptPickerCleanup();
+          slashPromptPickerCleanup = null;
         }
       } catch (e) {
         if (isExtensionContextInvalidatedError(e)) {
