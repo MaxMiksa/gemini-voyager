@@ -59,6 +59,13 @@ const LATEST_VERSION_CACHE_KEY = 'gvLatestVersionCache';
 const LATEST_VERSION_MAX_AGE = 1000 * 60 * 60 * 6; // 6 hours
 const GEMINI_SHARE_SELECTOR = '[data-test-id="share-button"]';
 const GEMINI_ACTIONS_MENU_SELECTOR = '[data-test-id="actions-menu-button"]';
+const GEMINI_HOME_TITLE_SELECTORS = [
+  'main h1',
+  'main [role="heading"][aria-level="1"]',
+  'main h2',
+  'h1',
+  '[role="heading"][aria-level="1"]',
+] as const;
 
 export function isGeminiWebTopbarMode(hostname: string = window.location.hostname): boolean {
   return hostname.toLowerCase() === 'gemini.google.com';
@@ -71,18 +78,45 @@ export function placePromptTriggerInTopbar(
   const shareButton = root.querySelector<HTMLElement>(GEMINI_SHARE_SELECTOR);
   const fallbackButton = root.querySelector<HTMLElement>(GEMINI_ACTIONS_MENU_SELECTOR);
   const anchor = shareButton ?? fallbackButton;
-  if (!anchor || !anchor.parentElement) return false;
 
-  const container = anchor.parentElement;
-  trigger.classList.add('gv-pm-trigger-inline');
-  trigger.style.right = '';
-  trigger.style.bottom = '';
+  const placeAsInline = (container: HTMLElement, before: HTMLElement | null = null): void => {
+    trigger.classList.add('gv-pm-trigger-inline');
+    trigger.style.right = '';
+    trigger.style.bottom = '';
+    if (before) {
+      if (trigger.parentElement !== container || trigger.nextElementSibling !== before) {
+        container.insertBefore(trigger, before);
+      }
+      return;
+    }
+    if (trigger.parentElement !== container) {
+      container.appendChild(trigger);
+    }
+  };
 
-  if (trigger.parentElement !== container || trigger.nextElementSibling !== anchor) {
-    container.insertBefore(trigger, anchor);
+  if (anchor && anchor.parentElement) {
+    trigger.classList.remove('gv-pm-trigger-title-inline');
+    placeAsInline(anchor.parentElement, anchor);
+    return true;
   }
 
-  return true;
+  for (const selector of GEMINI_HOME_TITLE_SELECTORS) {
+    const candidates = Array.from(root.querySelectorAll<HTMLElement>(selector));
+    const title = candidates.find((el) => {
+      const text = el.textContent?.trim().toLowerCase() ?? '';
+      return text === 'gemini';
+    });
+    if (!title || !title.parentElement) continue;
+
+    trigger.classList.add('gv-pm-trigger-title-inline');
+    placeAsInline(title.parentElement);
+    if (title.nextElementSibling !== trigger) {
+      title.insertAdjacentElement('afterend', trigger);
+    }
+    return true;
+  }
+
+  return false;
 }
 
 export function createTopbarPlacementObserver(
@@ -474,6 +508,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     function setFloatingTriggerMode(): void {
       isInlineTrigger = false;
       trigger.classList.remove('gv-pm-trigger-inline');
+      trigger.classList.remove('gv-pm-trigger-title-inline');
       if (trigger.parentElement !== document.body) {
         document.body.appendChild(trigger);
       }

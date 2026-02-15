@@ -44,6 +44,44 @@ describe('prompt trigger topbar placement', () => {
     expect(trigger.nextElementSibling).toBe(actions);
   });
 
+  it('falls back to Gemini title row when action buttons are not available', () => {
+    const topbar = document.createElement('div');
+    const title = document.createElement('h1');
+    title.textContent = 'Gemini';
+    topbar.appendChild(title);
+    document.body.appendChild(topbar);
+
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+
+    const placed = placePromptTriggerInTopbar(trigger, document);
+
+    expect(placed).toBe(true);
+    expect(title.nextElementSibling).toBe(trigger);
+    expect(trigger.classList.contains('gv-pm-trigger-inline')).toBe(true);
+    expect(trigger.classList.contains('gv-pm-trigger-title-inline')).toBe(true);
+  });
+
+  it('prefers share button placement when both share and title exist', () => {
+    const topbar = document.createElement('div');
+    const title = document.createElement('h1');
+    title.textContent = 'Gemini';
+    const share = document.createElement('button');
+    share.setAttribute('data-test-id', 'share-button');
+    topbar.appendChild(title);
+    topbar.appendChild(share);
+    document.body.appendChild(topbar);
+
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+
+    const placed = placePromptTriggerInTopbar(trigger, document);
+
+    expect(placed).toBe(true);
+    expect(trigger.nextElementSibling).toBe(share);
+    expect(trigger.classList.contains('gv-pm-trigger-title-inline')).toBe(false);
+  });
+
   it('returns false if no anchor button exists', () => {
     const trigger = document.createElement('button');
     document.body.appendChild(trigger);

@@ -762,6 +762,11 @@ mark.timeline-search-highlight {
   height: 18px;
 }
 
+.gv-pm-trigger.gv-pm-trigger-inline.gv-pm-trigger-title-inline {
+  margin-left: 8px;
+  margin-right: 0;
+}
+
 .gv-pm-trigger.gv-pm-trigger-inline:hover,
 .gv-pm-trigger.gv-pm-trigger-inline:active {
   transform: none;
