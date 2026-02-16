@@ -7,6 +7,7 @@ import { getTranslationSync } from '../../../utils/i18n';
 const STYLE_ID = 'gemini-voyager-input-collapse';
 const COLLAPSED_CLASS = 'gv-input-collapsed';
 const MIN_COLLAPSED_CLASS = 'gv-input-min-collapsed';
+const MIN_COLLAPSED_SHELL_CLASS = 'gv-input-min-collapsed-shell';
 const PLACEHOLDER_CLASS = 'gv-collapse-placeholder';
 const MIN_COLLAPSE_DOUBLE_ENTER_INTERVAL_MS = 350;
 
@@ -171,6 +172,35 @@ function injectStyles() {
       pointer-events: none !important;
     }
 
+    /* Also collapse the outer Gemini input shell to remove black bar + top gradient overlay */
+    .${MIN_COLLAPSED_SHELL_CLASS} {
+      height: 0 !important;
+      min-height: 0 !important;
+      max-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      overflow: hidden !important;
+      pointer-events: none !important;
+    }
+
+    .${MIN_COLLAPSED_SHELL_CLASS}::before,
+    .${MIN_COLLAPSED_SHELL_CLASS}::after {
+      content: none !important;
+      display: none !important;
+      opacity: 0 !important;
+      background: none !important;
+      pointer-events: none !important;
+    }
+
+    .${MIN_COLLAPSED_SHELL_CLASS} hallucination-disclaimer,
+    .${MIN_COLLAPSED_SHELL_CLASS} .capabilities-disclaimer {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
     /* Dark mode adjustments */
     @media (prefers-color-scheme: dark) {
       .${COLLAPSED_CLASS} {
@@ -240,6 +270,29 @@ function getInputContainer(): HTMLElement | null {
   // If we found a candidate with a background, use it.
   // Otherwise fallback to heuristic parents.
   return bestCandidate || textarea.parentElement?.parentElement || textarea.parentElement;
+}
+
+function getInputShell(container: HTMLElement): HTMLElement | null {
+  if (container.tagName.toLowerCase() === 'input-container') {
+    return container;
+  }
+  return container.closest('input-container');
+}
+
+function setMinCollapseShellState(container: HTMLElement, collapsed: boolean): void {
+  const shell = getInputShell(container);
+  if (!shell) return;
+  if (collapsed) {
+    shell.classList.add(MIN_COLLAPSED_SHELL_CLASS);
+  } else {
+    shell.classList.remove(MIN_COLLAPSED_SHELL_CLASS);
+  }
+}
+
+function clearMinCollapseShellClasses(): void {
+  document.querySelectorAll(`.${MIN_COLLAPSED_SHELL_CLASS}`).forEach((el) => {
+    el.classList.remove(MIN_COLLAPSED_SHELL_CLASS);
+  });
 }
 
 export function expandInputCollapseIfNeeded(): void {
@@ -317,9 +370,11 @@ export function startInputCollapse() {
         document.querySelectorAll(`.${MIN_COLLAPSED_CLASS}`).forEach((el) => {
           el.classList.remove(MIN_COLLAPSED_CLASS);
         });
+        clearMinCollapseShellClasses();
       } else {
-        document.querySelectorAll(`.${COLLAPSED_CLASS}`).forEach((el) => {
+        document.querySelectorAll<HTMLElement>(`.${COLLAPSED_CLASS}`).forEach((el) => {
           el.classList.add(MIN_COLLAPSED_CLASS);
+          setMinCollapseShellState(el, true);
         });
       }
     }
@@ -346,14 +401,17 @@ function setCollapsedState(container: HTMLElement): void {
   container.classList.add(COLLAPSED_CLASS);
   if (inputMinCollapseEnabled) {
     container.classList.add(MIN_COLLAPSED_CLASS);
+    setMinCollapseShellState(container, true);
   } else {
     container.classList.remove(MIN_COLLAPSED_CLASS);
+    setMinCollapseShellState(container, false);
   }
 }
 
 function clearCollapsedState(container: HTMLElement): void {
   container.classList.remove(COLLAPSED_CLASS);
   container.classList.remove(MIN_COLLAPSED_CLASS);
+  setMinCollapseShellState(container, false);
 }
 
 function cleanup() {
@@ -376,6 +434,7 @@ function cleanup() {
   document.querySelectorAll(`.${MIN_COLLAPSED_CLASS}`).forEach((el) => {
     el.classList.remove(MIN_COLLAPSED_CLASS);
   });
+  clearMinCollapseShellClasses();
   document.querySelectorAll('.element-to-collapse').forEach((el) => {
     el.classList.remove('element-to-collapse');
   });

@@ -18,7 +18,7 @@ type StorageChangeListener = (
   area: string,
 ) => void;
 
-function createInputContainer(): HTMLElement {
+function createInputContainer(parent: HTMLElement = document.body): HTMLElement {
   const container = document.createElement('div');
   container.style.backgroundColor = 'rgb(240, 244, 249)';
 
@@ -28,9 +28,25 @@ function createInputContainer(): HTMLElement {
   editor.setAttribute('contenteditable', 'true');
   richTextarea.appendChild(editor);
   container.appendChild(richTextarea);
-  document.body.appendChild(container);
+  parent.appendChild(container);
 
   return container;
+}
+
+function createInputContainerWithShell(): { container: HTMLElement; shell: HTMLElement } {
+  const shell = document.createElement('input-container');
+  shell.className = 'input-gradient';
+  const areaContainer = document.createElement('div');
+  areaContainer.className = 'input-area-container';
+  shell.appendChild(areaContainer);
+  const container = createInputContainer(areaContainer);
+
+  const disclaimer = document.createElement('hallucination-disclaimer');
+  disclaimer.className = 'capabilities-disclaimer';
+  shell.appendChild(disclaimer);
+
+  document.body.appendChild(shell);
+  return { container, shell };
 }
 
 describe('inputCollapse minimize mode', () => {
@@ -165,5 +181,24 @@ describe('inputCollapse minimize mode', () => {
 
     expect(container.classList.contains('gv-input-collapsed')).toBe(false);
     expect(container.classList.contains('gv-input-min-collapsed')).toBe(false);
+  });
+
+  it('toggles min-collapse shell class on outer input-container', async () => {
+    const { container, shell } = createInputContainerWithShell();
+    const { startInputCollapse } = await import('../index');
+    startInputCollapse();
+
+    document.body.appendChild(document.createElement('div'));
+    await Promise.resolve();
+    vi.advanceTimersByTime(200);
+
+    expect(container.classList.contains('gv-input-min-collapsed')).toBe(true);
+    expect(shell.classList.contains('gv-input-min-collapsed-shell')).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(container.classList.contains('gv-input-min-collapsed')).toBe(false);
+    expect(shell.classList.contains('gv-input-min-collapsed-shell')).toBe(false);
   });
 });
