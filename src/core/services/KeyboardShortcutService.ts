@@ -19,7 +19,6 @@ import type {
   KeyboardShortcutStorage,
   ModifierKey,
   ShortcutAction,
-  ShortcutKey,
   ShortcutMatch,
 } from '@/core/types/keyboardShortcut';
 
@@ -56,7 +55,9 @@ export class KeyboardShortcutService {
   private enabled: boolean = true;
   private listeners: Set<ShortcutCallback> = new Set();
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
-  private storageChangeHandler: ((changes: any, areaName: string) => void) | null = null;
+  private storageChangeHandler:
+    | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
+    | null = null;
 
   private constructor() {
     this.config = DEFAULT_SHORTCUTS;

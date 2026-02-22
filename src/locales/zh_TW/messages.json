@@ -751,6 +751,14 @@
     "message": "Cmd/Win",
     "description": "Meta/Command/Windows 修飾鍵"
   },
+  "preventAutoScroll": {
+    "message": "防自動跳轉",
+    "description": "Auto-hide sidebar toggle label"
+  },
+  "preventAutoScrollHint": {
+    "message": "避免在查看過往紀錄時按 Enter 導致頁面強制滾動到底部",
+    "description": "Auto-hide sidebar feature hint"
+  },
   "cloudSync": {
     "message": "雲端同步",
     "description": "雲端同步區域標題"
@@ -911,7 +919,6 @@
     "message": "展開",
     "description": "展開子節點"
   },
-
   "timelinePreviewSearch": {
     "message": "搜尋...",
     "description": "Timeline preview panel search placeholder"
@@ -1259,5 +1266,13 @@
   "deepResearch_researchedWebsites": {
     "message": "研究網站",
     "description": "深度研究已研究網站章節標題"
+  },
+  "snowEffect": {
+    "message": "飄雪效果",
+    "description": "Snow effect toggle label"
+  },
+  "snowEffectHint": {
+    "message": "在頁面上飄雪，營造冬日氛圍",
+    "description": "Snow effect feature hint"
   }
 }

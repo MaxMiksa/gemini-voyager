@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
-import type { SyncMode, SyncPlatform, SyncState } from '@/core/types/sync';
+import type { FolderData } from '@/core/types/folder';
+import type { PromptItem, SyncMode, SyncPlatform, SyncState } from '@/core/types/sync';
 import { DEFAULT_SYNC_STATE } from '@/core/types/sync';
 import { isSafari } from '@/core/utils/browser';
 
@@ -133,22 +134,6 @@ export function CloudSyncSettings() {
     }
   }, []);
 
-  // Handle sign in
-  const handleSignIn = useCallback(async () => {
-    setStatusMessage(null);
-    try {
-      const response = await chrome.runtime.sendMessage({ type: 'gv.sync.authenticate' });
-      if (response?.ok && response.state) {
-        setSyncState(response.state);
-      } else {
-        setStatusMessage({ text: response?.error || 'Authentication failed', kind: 'err' });
-      }
-    } catch (error) {
-      console.error('[CloudSyncSettings] Authentication failed:', error);
-      setStatusMessage({ text: 'Authentication failed', kind: 'err' });
-    }
-  }, []);
-
   // Handle sign out
   const handleSignOut = useCallback(async () => {
     try {
@@ -177,8 +162,8 @@ export function CloudSyncSettings() {
       }
 
       // Get current data - prioritizing active tab content script for folders
-      let folders = { folders: [], folderContents: {} };
-      let prompts: any[] = [];
+      let folders: FolderData = { folders: [], folderContents: {} };
+      let prompts: PromptItem[] = [];
 
       // 1. Try to get fresh folder data from active tab
       try {
@@ -188,7 +173,7 @@ export function CloudSyncSettings() {
           const response = (await Promise.race([
             chrome.tabs.sendMessage(tab.id, { type: 'gv.sync.requestData' }),
             new Promise((_, reject) => setTimeout(() => reject('Timeout'), 500)),
-          ])) as any;
+          ])) as { ok?: boolean; data?: FolderData } | null;
 
           if (response?.ok && response.data) {
             folders = response.data;
@@ -205,10 +190,7 @@ export function CloudSyncSettings() {
         const storageResult = await chrome.storage.local.get([folderStorageKey, 'gvPromptItems']);
 
         // Only use storage folders if we didn't get them from tab
-        if (
-          (!folders.folders || (folders.folders as any[]).length === 0) &&
-          storageResult[folderStorageKey]
-        ) {
+        if ((!folders.folders || folders.folders.length === 0) && storageResult[folderStorageKey]) {
           folders = storageResult[folderStorageKey];
           console.log(`[CloudSyncSettings] Loaded folders from ${folderStorageKey} (fallback)`);
         }
@@ -223,7 +205,7 @@ export function CloudSyncSettings() {
 
       console.log(
         `[CloudSyncSettings] Uploading ${platform} folders:`,
-        (folders.folders as any[])?.length || 0,
+        folders.folders?.length || 0,
         platform === 'gemini' ? `prompts: ${prompts.length}` : '(prompts skipped for AI Studio)',
       );
 
@@ -280,8 +262,8 @@ export function CloudSyncSettings() {
       }
 
       // Get current local data for merging - prioritize Content Script
-      let localFolders = { folders: [], folderContents: {} };
-      let localPrompts: any[] = [];
+      let localFolders: FolderData = { folders: [], folderContents: {} };
+      let localPrompts: PromptItem[] = [];
 
       // 1. Try to get fresh folder data from active tab
       try {
@@ -291,7 +273,7 @@ export function CloudSyncSettings() {
           const tabResponse = (await Promise.race([
             chrome.tabs.sendMessage(tab.id, { type: 'gv.sync.requestData' }),
             new Promise((_, reject) => setTimeout(() => reject('Timeout after 2s'), 2000)),
-          ])) as any;
+          ])) as { ok?: boolean; data?: FolderData } | null;
 
           console.log('[CloudSyncSettings] Tab response:', tabResponse);
           if (tabResponse?.ok && tabResponse.data) {
@@ -316,7 +298,7 @@ export function CloudSyncSettings() {
 
         // Only use storage folders if we didn't get them from tab
         if (
-          (!localFolders.folders || (localFolders.folders as any[]).length === 0) &&
+          (!localFolders.folders || localFolders.folders.length === 0) &&
           storageResult[folderStorageKey]
         ) {
           localFolders = storageResult[folderStorageKey];
@@ -342,10 +324,7 @@ export function CloudSyncSettings() {
       const cloudStarredData = cloudStarredPayload?.data || { messages: {} };
 
       console.log('[CloudSyncSettings] === MERGE DEBUG ===');
-      console.log(
-        '[CloudSyncSettings] Local folders count:',
-        (localFolders.folders as any[])?.length || 0,
-      );
+      console.log('[CloudSyncSettings] Local folders count:', localFolders.folders?.length || 0);
       console.log(
         '[CloudSyncSettings] Local folderContents:',
         JSON.stringify(Object.keys(localFolders.folderContents || {})),
@@ -372,7 +351,7 @@ export function CloudSyncSettings() {
       }
 
       // Perform Merge
-      const mergedFolders = mergeFolderData(localFolders as any, cloudFolderData);
+      const mergedFolders = mergeFolderData(localFolders, cloudFolderData);
       const mergedPrompts = mergePrompts(localPrompts, cloudPromptItems);
       const mergedStarred = mergeStarredMessages(localStarred, cloudStarredData);
 
@@ -389,7 +368,7 @@ export function CloudSyncSettings() {
 
       // Save merged data to storage (platform-specific storage key for folders)
       const folderStorageKey = platform === 'aistudio' ? 'gvFolderDataAIStudio' : 'gvFolderData';
-      const storageUpdate: Record<string, any> = {
+      const storageUpdate: Record<string, unknown> = {
         [folderStorageKey]: mergedFolders,
       };
 

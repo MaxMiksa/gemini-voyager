@@ -22,6 +22,7 @@ import { startInputCollapse } from './inputCollapse/index';
 import { initKaTeXConfig } from './katexConfig';
 import { startMarkdownPatcher } from './markdownPatcher/index';
 import { startMermaid } from './mermaid/index';
+import { startPreventAutoScroll } from './preventAutoScroll/index';
 import { startPromptManager } from './prompt/index';
 import { startQuoteReply } from './quoteReply/index';
 import { startRecentsHider } from './recentsHider/index';
@@ -29,6 +30,7 @@ import { startSendBehavior } from './sendBehavior/index';
 import { startSidebarAutoHide } from './sidebarAutoHide';
 import { startSidebarWidthAdjuster } from './sidebarWidth';
 import { startSlashPromptPicker } from './slashPromptPicker/index';
+import { startSnowEffect } from './snowEffect/index';
 import { startTimeline } from './timeline/index';
 import { startTitleUpdater } from './titleUpdater';
 import { startWatermarkRemover } from './watermarkRemover/index';
@@ -175,7 +177,13 @@ async function initializeFeatures(): Promise<void> {
       startSidebarAutoHide();
       await delay(LIGHT_FEATURE_INIT_DELAY);
 
+      startSnowEffect();
+      await delay(LIGHT_FEATURE_INIT_DELAY);
+
       startInputCollapse();
+      await delay(LIGHT_FEATURE_INIT_DELAY);
+
+      startPreventAutoScroll();
       await delay(LIGHT_FEATURE_INIT_DELAY);
 
       startFormulaCopy();
@@ -235,6 +243,9 @@ async function initializeFeatures(): Promise<void> {
       // Default Model Manager
       DefaultModelManager.getInstance().init();
       await delay(LIGHT_FEATURE_INIT_DELAY);
+
+      startExportButton();
+      await delay(LIGHT_FEATURE_INIT_DELAY);
     }
 
     if (
@@ -244,7 +255,9 @@ async function initializeFeatures(): Promise<void> {
     ) {
       promptManagerInstance = await startPromptManager();
       await delay(HEAVY_FEATURE_INIT_DELAY);
+    }
 
+    if (location.hostname === 'gemini.google.com') {
       // Initialize Mermaid rendering (lightweight)
       startMermaid();
       await delay(LIGHT_FEATURE_INIT_DELAY);
@@ -265,8 +278,6 @@ async function initializeFeatures(): Promise<void> {
       startFormulaCopy();
       await delay(LIGHT_FEATURE_INIT_DELAY);
     }
-
-    startExportButton();
   } catch (e) {
     if (isExtensionContextInvalidatedError(e)) {
       return;

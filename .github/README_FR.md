@@ -52,6 +52,14 @@
     <img src="https://count.getloli.com/@gemini-voyager?name=gemini-voyager&theme=rule34&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
   </p>
 
+<p align="center">
+  <a href="https://x.com/Nag1ovo/status/2024507762483277927?s=20" target="_blank">
+    <img src="../docs/public/assets/x-recommendation.png" alt="KOL Recommendation" width="800">
+  </a>
+  <br>
+  <b>🎉 Fortement recommandé par les meilleurs influenceurs tech !</b>
+</p>
+
 > [!NOTE]
 > Si Gemini Voyager vous est utile, partagez-le sur X, Reddit, YouTube, etc. Chaque partage aide plus de personnes à découvrir le projet et à améliorer l'expérience Gemini. Merci.
 
@@ -62,6 +70,14 @@
 Nous adorons Gemini, mais nous aimerions parfois qu'il soit un peu plus "ordonné".
 
 C'est pourquoi nous avons créé **Gemini Voyager**. Plus qu'un simple outil, c'est un compagnon qui vous aide à garder vos conversations IA organisées, accessibles et productives. Que vous soyez un chercheur gérant des dizaines de fils, un développeur sauvegardant des extraits de code, ou simplement quelqu'un qui aime l'ordre, Voyager est fait pour vous.
+
+<p align="center">
+  <a href="https://x.com/Nag1ovo/status/2024509398601597412?s=20" target="_blank">
+    <img src="../docs/public/assets/try-voyager.png" alt="Try Voyager" width="800">
+  </a>
+  <br>
+  <i>Lors du problème du 18 février où l'application Google Gemini a rendu inaccessibles les conversations historiques de certains utilisateurs, les utilisateurs de Voyager ont toujours pu voir leurs conversations enregistrées dans leurs dossiers.</i>
+</p>
 
 ---
 
@@ -87,6 +103,7 @@ C'est pourquoi nous avons créé **Gemini Voyager**. Plus qu'un simple outil, c'
   - **[Suppression par Lot](https://voyager.nagi.fun/fr/guide/batch-delete)** : Nettoyage massif de votre historique.
   - **[Réponse avec Citation](https://voyager.nagi.fun/fr/guide/quote-reply)** : Répondez avec contexte en sélectionnant simplement du texte.
   - **[Synchro Titre Onglet](https://voyager.nagi.fun/fr/guide/tab-title)** : Synchronisation automatique du titre de l'onglet avec le titre du chat.
+  - **[Empêcher le défilement auto](https://voyager.nagi.fun/fr/guide/prevent-auto-scroll)** : Intercepte le saut incontrôlé vers le bas de la page.
   - **[Réduction Entrée](https://voyager.nagi.fun/fr/guide/input-collapse)** : Zone de saisie auto-réductible pour plus d'espace de lecture.
   - **[Modèle par Défaut](https://voyager.nagi.fun/fr/guide/default-model)** : Définissez votre modèle préféré par défaut.
   - **[Masquer les éléments récents et Gems](https://voyager.nagi.fun/fr/guide/recents-hider)** : Masquer la liste "Récents" dans la barre latérale pour réduire les distractions.

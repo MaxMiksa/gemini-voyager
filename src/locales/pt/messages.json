@@ -791,6 +791,14 @@
     "message": "Cmd/Win",
     "description": "Meta/Command/Windows modifier key"
   },
+  "preventAutoScroll": {
+    "message": "Prevenir rolamento automático",
+    "description": "Auto-hide sidebar toggle label"
+  },
+  "preventAutoScrollHint": {
+    "message": "Impede o Gemini de pular para o final quando você aperta Enter enquanto lê respostas anteriores.",
+    "description": "Auto-hide sidebar feature hint"
+  },
   "cloudSync": {
     "message": "Sincronização na Nuvem",
     "description": "Cloud sync section title"
@@ -951,7 +959,6 @@
     "message": "Expandir",
     "description": "Expand children"
   },
-
   "timelinePreviewSearch": {
     "message": "Pesquisar...",
     "description": "Timeline preview panel search placeholder"
@@ -1259,5 +1266,13 @@
   "deepResearch_researchedWebsites": {
     "message": "Sites pesquisados",
     "description": "Cabeçalho de secção de sites pesquisados de Deep Research"
+  },
+  "snowEffect": {
+    "message": "Efeito de neve",
+    "description": "Snow effect toggle label"
+  },
+  "snowEffectHint": {
+    "message": "Deixe nevar na página para um clima de inverno",
+    "description": "Snow effect feature hint"
   }
 }

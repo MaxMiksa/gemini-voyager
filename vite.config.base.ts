@@ -30,6 +30,10 @@ export const baseManifest = {
 export const baseBuildOptions: BuildOptions = {
   sourcemap: isDev,
   emptyOutDir: !isDev,
+  // Content scripts run under page CSP context for DOM-injected preload links.
+  // Disable Vite modulepreload hints to avoid generating "/assets/*" requests
+  // on the host page origin (e.g. aistudio.google.com), which are blocked by CSP.
+  modulePreload: false,
 };
 
 export default defineConfig({
@@ -41,4 +45,7 @@ export default defineConfig({
     crxI18n({ localize, src: './src/locales' }),
   ],
   publicDir: resolve(__dirname, 'public'),
+  esbuild: {
+    pure: isDev ? [] : ['console.log', 'console.debug'],
+  },
 });

@@ -791,6 +791,14 @@
     "message": "Cmd/Win",
     "description": "Meta/Command/Windows modifier key"
   },
+  "preventAutoScroll": {
+    "message": "Предотвращение автопрокрутки",
+    "description": "Auto-hide sidebar toggle label"
+  },
+  "preventAutoScrollHint": {
+    "message": "Предотвращает прыжок Gemini вниз при нажатии Enter во время чтения предыдущих ответов.",
+    "description": "Auto-hide sidebar feature hint"
+  },
   "cloudSync": {
     "message": "Облачная синхронизация",
     "description": "Cloud sync section title"
@@ -951,7 +959,6 @@
     "message": "Развернуть",
     "description": "Expand children"
   },
-
   "timelinePreviewSearch": {
     "message": "Поиск...",
     "description": "Timeline preview panel search placeholder"
@@ -1259,5 +1266,13 @@
   "deepResearch_researchedWebsites": {
     "message": "Исследованные сайты",
     "description": "Заголовок раздела исследованных сайтов Deep Research"
+  },
+  "snowEffect": {
+    "message": "Эффект снега",
+    "description": "Snow effect toggle label"
+  },
+  "snowEffectHint": {
+    "message": "Снегопад на странице для зимней атмосферы",
+    "description": "Snow effect feature hint"
   }
 }

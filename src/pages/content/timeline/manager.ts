@@ -1,6 +1,5 @@
 import { keyboardShortcutService } from '@/core/services/KeyboardShortcutService';
 import { StorageKeys } from '@/core/types/common';
-import type { ShortcutAction } from '@/core/types/keyboardShortcut';
 
 import { getTranslationSync, initI18n } from '../../../utils/i18n';
 import { eventBus } from './EventBus';
@@ -21,6 +20,37 @@ function hashString(input: string): string {
 /** Accessibility prefixes injected by Gemini's DOM that should be stripped from previews effectively globally. */
 const TURN_LABEL_PREFIXES =
   /^[\u200B\u200C\u200D\u200E\u200F\uFEFF]*(?:you said|you wrote|user message|your prompt|you asked)[:\s]*/i;
+const VISUALLY_HIDDEN_CLASS_FRAGMENT = 'visually-hidden';
+
+type ExtGlobal = typeof globalThis & {
+  chrome?: {
+    storage?: {
+      sync?: {
+        get(k: Record<string, unknown>, cb: (items: Record<string, unknown>) => void): void;
+        set?(items: Record<string, unknown>): void;
+      };
+      onChanged?: {
+        addListener(
+          cb: (changes: Record<string, { newValue: unknown }>, area: string) => void,
+        ): void;
+      };
+    };
+    runtime?: { lastError?: { message: string } };
+  };
+  browser?: {
+    storage?: {
+      sync?: {
+        get(k: Record<string, unknown>): Promise<Record<string, unknown>>;
+        set?(items: Record<string, unknown>): void;
+      };
+      onChanged?: {
+        addListener(
+          cb: (changes: Record<string, { newValue: unknown }>, area: string) => void,
+        ): void;
+      };
+    };
+  };
+};
 
 export class TimelineManager {
   private scrollContainer: HTMLElement | null = null;
@@ -167,7 +197,7 @@ export class TimelineManager {
     // Initialize keyboard shortcuts
     await this.initKeyboardShortcuts();
     try {
-      const g = globalThis as any;
+      const g = globalThis as ExtGlobal;
       const defaults = {
         geminiTimelineScrollMode: 'flow',
         geminiTimelineHideContainer: false,
@@ -176,24 +206,27 @@ export class TimelineManager {
         geminiTimelinePosition: null,
       };
 
-      let res: any = null;
+      let res: Record<string, unknown> | null = null;
       // prefer chrome.storage or browser.storage if available to sync with popup
       if (g.chrome?.storage?.sync || g.browser?.storage?.sync) {
         res = await new Promise((resolve) => {
           if (g.chrome?.storage?.sync?.get) {
-            g.chrome.storage.sync.get(defaults, (items: any) => {
-              if (g.chrome.runtime.lastError) {
-                console.error(
-                  `[Timeline] chrome.storage.get failed: ${g.chrome.runtime.lastError.message}`,
-                );
-                resolve(null);
-              } else {
-                resolve(items);
-              }
-            });
+            g.chrome.storage.sync.get(
+              defaults as Record<string, unknown>,
+              (items: Record<string, unknown>) => {
+                if (g.chrome.runtime.lastError) {
+                  console.error(
+                    `[Timeline] chrome.storage.get failed: ${g.chrome.runtime.lastError.message}`,
+                  );
+                  resolve(null);
+                } else {
+                  resolve(items);
+                }
+              },
+            );
           } else {
-            g.browser.storage.sync
-              .get(defaults)
+            g.browser?.storage?.sync
+              ?.get(defaults)
               .then(resolve)
               .catch((error: Error) => {
                 console.error(`[Timeline] browser.storage.get failed: ${error.message}`);
@@ -215,7 +248,15 @@ export class TimelineManager {
       this.toggleMarkerLevel(!!res?.geminiTimelineMarkerLevel);
 
       // Load position with auto-migration from v1 to v2
-      const position = res?.geminiTimelinePosition;
+      const position = res?.geminiTimelinePosition as
+        | {
+            version?: number;
+            topPercent?: number;
+            leftPercent?: number;
+            top?: number;
+            left?: number;
+          }
+        | undefined;
       if (position) {
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
@@ -251,7 +292,7 @@ export class TimelineManager {
       try {
         const onChanged = g.chrome?.storage?.onChanged || g.browser?.storage?.onChanged;
         if (onChanged) {
-          onChanged.addListener((changes: any, area: string) => {
+          onChanged.addListener((changes: Record<string, { newValue: unknown }>, area: string) => {
             if (area !== 'sync') return;
             if (changes?.geminiTimelineScrollMode) {
               const n = changes.geminiTimelineScrollMode.newValue;
@@ -779,6 +820,47 @@ export class TimelineManager {
     }
   }
 
+  private hasVisuallyHiddenClass(el: Element): boolean {
+    if (!(el instanceof HTMLElement) || el.classList.length === 0) return false;
+    for (const cls of el.classList) {
+      if (cls.toLowerCase().includes(VISUALLY_HIDDEN_CLASS_FRAGMENT)) return true;
+    }
+    return false;
+  }
+
+  private extractTurnText(element: HTMLElement | null): string {
+    if (!element) return '';
+    try {
+      if (!this.hasVisuallyHiddenClass(element)) {
+        const descendants = element.getElementsByTagName('*');
+        let containsVisuallyHiddenDescendant = false;
+        for (let i = 0; i < descendants.length; i++) {
+          if (this.hasVisuallyHiddenClass(descendants[i])) {
+            containsVisuallyHiddenDescendant = true;
+            break;
+          }
+        }
+        if (!containsVisuallyHiddenDescendant) {
+          return this.normalizeText(element.textContent || '');
+        }
+      } else {
+        return '';
+      }
+
+      const clone = element.cloneNode(true) as HTMLElement;
+      if (this.hasVisuallyHiddenClass(clone)) return '';
+      const descendants = clone.getElementsByTagName('*');
+      for (let i = descendants.length - 1; i >= 0; i--) {
+        if (this.hasVisuallyHiddenClass(descendants[i])) {
+          descendants[i].remove();
+        }
+      }
+      return this.normalizeText(clone.textContent || '');
+    } catch {
+      return this.normalizeText(element.textContent || '');
+    }
+  }
+
   /**
    * Performance-optimized filter to remove nested elements.
    * Sorts elements by depth first, which can prune the search space in the average case.
@@ -836,7 +918,7 @@ export class TimelineManager {
       // Get or compute normalized text
       let normalizedText = normalizedCache.get(el);
       if (normalizedText === undefined) {
-        normalizedText = this.normalizeText(el.textContent || '');
+        normalizedText = this.extractTurnText(el);
         normalizedCache.set(el, normalizedText);
       }
 
@@ -869,14 +951,14 @@ export class TimelineManager {
 
   private ensureTurnId(el: Element, index: number): string {
     const asEl = el as HTMLElement & { dataset?: DOMStringMap & { turnId?: string } };
-    let id = (asEl.dataset && (asEl.dataset as any).turnId) || '';
+    let id = asEl.dataset?.turnId || '';
     if (!id) {
-      const basis = this.normalizeText(asEl.textContent || '') || `user-${index}`;
+      const basis = this.extractTurnText(asEl) || `user-${index}`;
       // Use only content hash (without index) to ensure stable IDs across page refreshes
       // This prevents starred messages from losing their stars when the conversation continues
       id = `u-${hashString(basis)}`;
       try {
-        (asEl.dataset as any).turnId = id;
+        if (asEl.dataset) asEl.dataset.turnId = id;
       } catch {}
     }
     return id;
@@ -1104,7 +1186,7 @@ export class TimelineManager {
       const m = {
         id,
         element,
-        summary: this.normalizeText(element.textContent || ''),
+        summary: this.extractTurnText(element),
         n,
         baseN: n,
         dotElement: null,
@@ -1160,29 +1242,43 @@ export class TimelineManager {
         return;
       }
 
-      // Use index lookup if available for robust handling of duplicate content
-      const indexStr = dot.dataset.markerIndex;
-      let targetElement: HTMLElement | null = null;
-      let toIdx = -1;
+      const resolveTargetFromDot = (): { targetElement: HTMLElement | null; toIdx: number } => {
+        // Use index lookup if available for robust handling of duplicate content
+        const indexStr = dot.dataset.markerIndex;
+        let targetElement: HTMLElement | null = null;
+        let toIdx = -1;
 
-      if (indexStr) {
-        toIdx = parseInt(indexStr, 10);
-        const marker = this.markers[toIdx];
-        if (marker) {
-          targetElement = marker.element;
+        if (indexStr) {
+          toIdx = parseInt(indexStr, 10);
+          const marker = this.markers[toIdx];
+          if (marker) {
+            targetElement = marker.element;
+          }
         }
-      }
 
-      // Fallback to ID-based lookup if index fails (shouldn't happen)
-      if (!targetElement) {
-        const targetId = dot.dataset.targetTurnId!;
-        targetElement =
-          (this.conversationContainer!.querySelector(
-            `[data-turn-id="${targetId}"]`,
-          ) as HTMLElement | null) ||
-          this.markers.find((m) => m.id === targetId)?.element ||
-          null;
-        toIdx = this.markers.findIndex((m) => m.id === targetId);
+        // Fallback to ID-based lookup if index fails
+        if (!targetElement) {
+          const targetId = dot.dataset.targetTurnId || '';
+          if (!targetId) return { targetElement: null, toIdx: -1 };
+
+          targetElement =
+            (this.conversationContainer?.querySelector(
+              `[data-turn-id="${targetId}"]`,
+            ) as HTMLElement | null) ||
+            this.markers.find((m) => m.id === targetId)?.element ||
+            null;
+          toIdx = this.markers.findIndex((m) => m.id === targetId);
+        }
+
+        return { targetElement, toIdx };
+      };
+
+      let { targetElement, toIdx } = resolveTargetFromDot();
+
+      // On Gemini reload/rehydration, marker nodes or scroll container may become stale.
+      // Refresh once and resolve target again to keep click navigation reliable.
+      if (this.maybeRefreshMarkersForInteraction(targetElement)) {
+        ({ targetElement, toIdx } = resolveTargetFromDot());
       }
 
       if (targetElement) {
@@ -1310,7 +1406,7 @@ export class TimelineManager {
     this.onSliderDown = (ev: PointerEvent) => {
       if (!this.ui.sliderHandle) return;
       try {
-        (this.ui.sliderHandle as any).setPointerCapture(ev.pointerId);
+        this.ui.sliderHandle.setPointerCapture(ev.pointerId);
       } catch {}
       this.sliderDragging = true;
       this.showSlider();
@@ -1534,9 +1630,9 @@ export class TimelineManager {
    */
   private debouncedRecalc = this.debounce(() => this.recalculateAndRenderMarkers(), 200);
 
-  private debounce<T extends (...args: any[]) => void>(func: T, delay: number): T {
+  private debounce<T extends (...args: unknown[]) => void>(func: T, delay: number): T {
     let timeout: number | null = null;
-    return ((...args: any[]) => {
+    return ((...args: unknown[]) => {
       if (timeout) clearTimeout(timeout);
       timeout = window.setTimeout(() => func.apply(this, args), delay);
     }) as unknown as T;
@@ -2126,7 +2222,7 @@ export class TimelineManager {
       leftPercent: (rect.left / viewportWidth) * 100,
     };
 
-    const g = globalThis as any;
+    const g = globalThis as ExtGlobal;
     if (g.chrome?.storage?.sync?.set) {
       g.chrome.storage.sync.set({ geminiTimelinePosition: position });
     } else if (g.browser?.storage?.sync?.set) {
@@ -2160,26 +2256,29 @@ export class TimelineManager {
   private async reapplyPosition(): Promise<void> {
     if (!this.ui.timelineBar) return;
 
-    const g = globalThis as any;
+    const g = globalThis as ExtGlobal;
     if (!g.chrome?.storage?.sync && !g.browser?.storage?.sync) return;
 
-    let res: any = null;
+    let res: Record<string, unknown> | null = null;
     try {
       res = await new Promise((resolve) => {
         if (g.chrome?.storage?.sync?.get) {
-          g.chrome.storage.sync.get(['geminiTimelinePosition'], (items: any) => {
-            if (g.chrome.runtime?.lastError) {
-              console.error(
-                `[Timeline] chrome.storage.get failed: ${g.chrome.runtime.lastError.message}`,
-              );
-              resolve(null);
-            } else {
-              resolve(items);
-            }
-          });
+          g.chrome.storage.sync.get(
+            { geminiTimelinePosition: null },
+            (items: Record<string, unknown>) => {
+              if (g.chrome.runtime?.lastError) {
+                console.error(
+                  `[Timeline] chrome.storage.get failed: ${g.chrome.runtime.lastError.message}`,
+                );
+                resolve(null);
+              } else {
+                resolve(items);
+              }
+            },
+          );
         } else {
-          g.browser.storage.sync
-            .get(['geminiTimelinePosition'])
+          g.browser?.storage?.sync
+            ?.get({ geminiTimelinePosition: null })
             .then(resolve)
             .catch((error: Error) => {
               console.error(`[Timeline] browser.storage.get failed: ${error.message}`);
@@ -2192,7 +2291,9 @@ export class TimelineManager {
       return;
     }
 
-    const position = res?.geminiTimelinePosition;
+    const position = res?.geminiTimelinePosition as
+      | { version?: number; topPercent?: number; leftPercent?: number; top?: number; left?: number }
+      | undefined;
     if (!position) return;
 
     const viewportWidth = window.innerWidth;
@@ -2300,7 +2401,7 @@ export class TimelineManager {
     try {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr)) {
-        arr.forEach((id: any) => this.starred.add(String(id)));
+        arr.forEach((id: unknown) => this.starred.add(String(id)));
       }
     } catch (error) {
       console.warn('[Timeline] Failed to parse starred messages:', error);
@@ -2366,7 +2467,7 @@ export class TimelineManager {
     try {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr)) {
-        arr.forEach((id: any) => this.collapsedMarkers.add(String(id)));
+        arr.forEach((id: unknown) => this.collapsedMarkers.add(String(id)));
       }
     } catch (error) {
       console.warn('[Timeline] Failed to parse collapsed markers:', error);
@@ -2429,7 +2530,7 @@ export class TimelineManager {
     return hidden;
   }
 
-  private calculateEffectiveBaseN(markerIndex: number, hiddenIndices: Set<number>): number {
+  private calculateEffectiveBaseN(markerIndex: number, _hiddenIndices: Set<number>): number {
     const marker = this.markers[markerIndex];
     if (!marker) return 0;
 
@@ -2750,6 +2851,53 @@ export class TimelineManager {
     return containersDisconnected || documentCount > this.markers.length;
   }
 
+  private getScrollContainerForElement(element: HTMLElement): HTMLElement {
+    let p: HTMLElement | null = element;
+    while (p && p !== document.body) {
+      const st = getComputedStyle(p);
+      if (st.overflowY === 'auto' || st.overflowY === 'scroll') {
+        return p;
+      }
+      p = p.parentElement;
+    }
+
+    return (
+      (document.scrollingElement as HTMLElement | null) ||
+      (document.documentElement as HTMLElement | null) ||
+      (document.body as unknown as HTMLElement)
+    );
+  }
+
+  private shouldRefreshForInteraction(targetElement: HTMLElement | null): boolean {
+    if (this.shouldAttemptRefreshForNavigation()) return true;
+
+    if (targetElement && !targetElement.isConnected) return true;
+
+    if (
+      targetElement &&
+      this.conversationContainer &&
+      !this.conversationContainer.contains(targetElement)
+    ) {
+      return true;
+    }
+
+    if (!targetElement || !this.scrollContainer) return false;
+
+    const expectedScrollContainer = this.getScrollContainerForElement(targetElement);
+    return expectedScrollContainer !== this.scrollContainer;
+  }
+
+  private maybeRefreshMarkersForInteraction(targetElement: HTMLElement | null): boolean {
+    if (!this.userTurnSelector) return false;
+    if (!this.shouldRefreshForInteraction(targetElement)) return false;
+
+    const refreshed = this.refreshCriticalElementsFromDocument();
+    if (!refreshed) return false;
+
+    this.recalculateAndRenderMarkers();
+    return true;
+  }
+
   /**
    * Process navigation queue (one at a time)
    */
@@ -2778,6 +2926,9 @@ export class TimelineManager {
    * Shared logic for previous/next navigation
    */
   private async performNodeNavigation(targetIndex: number, currentIndex: number): Promise<void> {
+    const markerBeforeRefresh = this.markers[targetIndex];
+    this.maybeRefreshMarkersForInteraction(markerBeforeRefresh?.element || null);
+
     if (targetIndex < 0 || targetIndex >= this.markers.length) return;
 
     // Clear any pending scroll updates to prevent interference
@@ -2860,22 +3011,7 @@ export class TimelineManager {
       (document.querySelector('main') as HTMLElement | null) || (document.body as HTMLElement);
     this.conversationContainer = nextConversationContainer;
 
-    let nextScrollContainer: HTMLElement | null = null;
-    let p: HTMLElement | null = firstTurn;
-    while (p && p !== document.body) {
-      const st = getComputedStyle(p);
-      if (st.overflowY === 'auto' || st.overflowY === 'scroll') {
-        nextScrollContainer = p;
-        break;
-      }
-      p = p.parentElement;
-    }
-    if (!nextScrollContainer) {
-      nextScrollContainer =
-        (document.scrollingElement as HTMLElement | null) ||
-        (document.documentElement as HTMLElement | null) ||
-        (document.body as unknown as HTMLElement);
-    }
+    const nextScrollContainer = this.getScrollContainerForElement(firstTurn);
 
     const scrollContainerChanged = this.scrollContainer !== nextScrollContainer;
     if (scrollContainerChanged) {
@@ -3133,7 +3269,7 @@ export class TimelineManager {
     this.clearSearchHighlights();
     this.previewPanel?.destroy();
     this.previewPanel = null;
-    this.ui = { timelineBar: null, tooltip: null } as any;
+    this.ui = { timelineBar: null, tooltip: null };
     this.markers = [];
     this.markerTops = [];
     this.activeTurnId = null;
@@ -3152,8 +3288,10 @@ export class TimelineManager {
       this.resizeIdleTimer = null;
     }
     try {
-      if (this.resizeIdleRICId && (window as any).cancelIdleCallback) {
-        (window as any).cancelIdleCallback(this.resizeIdleRICId);
+      if (this.resizeIdleRICId && 'cancelIdleCallback' in window) {
+        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(
+          this.resizeIdleRICId,
+        );
         this.resizeIdleRICId = null;
       }
     } catch {}

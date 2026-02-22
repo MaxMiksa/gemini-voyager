@@ -52,6 +52,14 @@
     <img src="https://count.getloli.com/@gemini-voyager?name=gemini-voyager&theme=rule34&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" width="400">
   </p>
 
+<p align="center">
+  <a href="https://x.com/Nag1ovo/status/2024507762483277927?s=20" target="_blank">
+    <img src="../docs/public/assets/x-recommendation.png" alt="KOL Recommendation" width="800">
+  </a>
+  <br>
+  <b>🎉 トップテックKOLやコミュニティから強く推奨されています！</b>
+</p>
+
 > [!NOTE]
 > もし Gemini Voyager が役に立っているなら、X、YouTube、Reddit などで共有してもらえると嬉しいです。シェアが増えるほど、このプロジェクトをより多くの人に届けられ、Gemini の体験改善にもつながります。ありがとう。
 
@@ -62,6 +70,14 @@
 私たちは Gemini が大好きですが、時にはもう少し「秩序」が欲しいと感じることがあります。
 
 それが **Gemini Voyager** を開発した理由です。これは単なるツールではなく、AI との会話を整理し、アクセスしやすく、生産的にするためのパートナーです。多くのスレッドを扱う研究者、コードを保存したい開発者、あるいは単に整理整頓が好きな方、Voyager はあなたのための拡張機能です。
+
+<p align="center">
+  <a href="https://x.com/Nag1ovo/status/2024509398601597412?s=20" target="_blank">
+    <img src="../docs/public/assets/try-voyager.png" alt="Try Voyager" width="800">
+  </a>
+  <br>
+  <i>2月18日にGoogle Gemini Appが一部のユーザーの履歴会話にアクセスできなくなる問題を引き起こした際、Voyagerのユーザーは引き続きフォルダ内に保存された会話を見ることができました。</i>
+</p>
 
 ---
 
@@ -87,6 +103,7 @@
   - **[一括削除](https://voyager.nagi.fun/ja/guide/batch-delete)**: 履歴をまとめてクリーンアップ。
   - **[引用返信](https://voyager.nagi.fun/ja/guide/quote-reply)**: テキストを選択してワンクリックで引用。
   - **[タブタイトルの同期](https://voyager.nagi.fun/ja/guide/tab-title)**: タブの名前をチャットのタイトルに自動変更。
+  - **[自動スクロール防止](https://voyager.nagi.fun/ja/guide/prevent-auto-scroll)**: 新しいプロンプトを送信する際の迷惑なジャンプ動作を阻止します。
   - **[入力欄の自動非表示](https://voyager.nagi.fun/ja/guide/input-collapse)**: 未入力時に折りたたんで表示スペースを確保。
   - **[デフォルトモデル](https://voyager.nagi.fun/ja/guide/default-model)**: 新しい対話に使用するデフォルトのモデルを設定します。
   - **[最近の項目と Gem を非表示](https://voyager.nagi.fun/ja/guide/recents-hider)**: サイドバーの「最近」リストを非表示にして、集中力を高めます。

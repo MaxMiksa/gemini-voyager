@@ -3,6 +3,7 @@ import browser from 'webextension-polyfill';
 import { DataBackupService } from '@/core/services/DataBackupService';
 import { getStorageMonitor } from '@/core/services/StorageMonitor';
 import { StorageKeys } from '@/core/types/common';
+import type { PromptItem } from '@/core/types/sync';
 import { isSafari } from '@/core/utils/browser';
 import { createTranslator, initI18n } from '@/utils/i18n';
 
@@ -48,7 +49,7 @@ function normalizeText(text: string | null | undefined): string {
   }
 }
 
-function downloadJSON(data: any, filename: string): void {
+function downloadJSON(data: unknown, filename: string): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: 'application/json;charset=utf-8',
   });
@@ -78,6 +79,7 @@ const NOTIFICATION_TIMEOUT_MS = 5000;
 const PROMPT_LINK_SELECTOR = 'a.prompt-link[href^="/prompts/"]';
 const UNBOUND_PROMPT_LINK_SELECTOR = `${PROMPT_LINK_SELECTOR}:not([data-gv-drag-bound])`;
 const PROMPT_LIST_BIND_DEBOUNCE_MS = 120;
+const PROMPT_TITLE_SYNC_DEBOUNCE_MS = 280;
 const PROMPT_DRAG_HOST_SELECTORS = [
   '[data-test-id^="history-item"]',
   '[role="listitem"]',
@@ -95,6 +97,35 @@ export function mutationAddsPromptLinks(mutations: MutationRecord[]): boolean {
   for (const mutation of mutations) {
     for (const node of Array.from(mutation.addedNodes)) {
       if (nodeContainsPromptLink(node)) return true;
+    }
+  }
+  return false;
+}
+
+function mutationMayAffectPromptTitles(mutations: MutationRecord[]): boolean {
+  for (const mutation of mutations) {
+    if (mutation.type === 'characterData') {
+      if (mutation.target.parentElement?.closest(PROMPT_LINK_SELECTOR)) return true;
+      continue;
+    }
+
+    if (mutation.type === 'attributes') {
+      if (mutation.target instanceof Element && mutation.target.closest(PROMPT_LINK_SELECTOR))
+        return true;
+      continue;
+    }
+
+    if (mutation.type === 'childList') {
+      if (mutation.target instanceof Element && mutation.target.closest(PROMPT_LINK_SELECTOR)) {
+        return true;
+      }
+
+      for (const node of Array.from(mutation.addedNodes)) {
+        if (nodeContainsPromptLink(node)) return true;
+      }
+      for (const node of Array.from(mutation.removedNodes)) {
+        if (nodeContainsPromptLink(node)) return true;
+      }
     }
   }
   return false;
@@ -162,13 +193,10 @@ export function parseDragDataPayload(raw: string): DragData | null {
 /**
  * Validate folder data structure
  */
-function validateFolderData(data: any): boolean {
-  return (
-    data &&
-    typeof data === 'object' &&
-    Array.isArray(data.folders) &&
-    typeof data.folderContents === 'object'
-  );
+function validateFolderData(data: unknown): boolean {
+  if (typeof data !== 'object' || data === null) return false;
+  const d = data as Record<string, unknown>;
+  return Array.isArray(d.folders) && typeof d.folderContents === 'object';
 }
 
 export class AIStudioFolderManager {
@@ -178,6 +206,8 @@ export class AIStudioFolderManager {
   private historyRoot: HTMLElement | null = null;
   private cleanupFns: Array<() => void> = [];
   private promptListBindTimer: number | null = null;
+  private promptTitleSyncTimer: number | null = null;
+  private promptTitleSyncInProgress: boolean = false;
   private readonly STORAGE_KEY = StorageKeys.FOLDER_DATA_AISTUDIO;
   private folderEnabled: boolean = true; // Whether folder feature is enabled
   private backupService!: DataBackupService<FolderData>; // Initialized in init()
@@ -326,9 +356,10 @@ export class AIStudioFolderManager {
    * Handles gv.sync.requestData and gv.folders.reload messages from popup
    */
   private setupMessageListener(): void {
-    browser.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: any) => {
+    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      const msg = message as Record<string, unknown>;
       // Handle request for folder data (for cloud sync upload)
-      if (message?.type === 'gv.sync.requestData') {
+      if (msg?.type === 'gv.sync.requestData') {
         console.log('[AIStudioFolderManager] Received request for folder data from popup');
         sendResponse({
           ok: true,
@@ -338,7 +369,7 @@ export class AIStudioFolderManager {
       }
 
       // Handle reload request (after cloud sync download)
-      if (message?.type === 'gv.folders.reload') {
+      if (msg?.type === 'gv.folders.reload') {
         console.log('[AIStudioFolderManager] Received reload request from sync');
         this.load().then(() => {
           this.render();
@@ -374,6 +405,7 @@ export class AIStudioFolderManager {
       this.injectUI();
       this.observePromptList();
       this.bindDraggablesInPromptList();
+      await this.syncConversationTitlesFromPromptList();
 
       // Highlight current conversation initially and on navigation
       this.highlightActiveConversation();
@@ -672,10 +704,10 @@ export class AIStudioFolderManager {
       window.addEventListener('popstate', update);
     } catch {}
     try {
-      const hist = history as any;
+      const hist = history as History & Record<string, unknown>;
       const wrap = (method: 'pushState' | 'replaceState') => {
-        const orig = hist[method];
-        hist[method] = function (...args: any[]) {
+        const orig = hist[method] as (...args: unknown[]) => unknown;
+        hist[method] = function (...args: unknown[]) {
           const ret = orig.apply(this, args);
           try {
             update();
@@ -730,7 +762,7 @@ export class AIStudioFolderManager {
 
     const icon = document.createElement('span');
     icon.className = 'gv-folder-icon google-symbols';
-    (icon as any).dataset.icon = 'folder';
+    icon.dataset.icon = 'folder';
     icon.textContent = 'folder';
     header.appendChild(icon);
 
@@ -744,7 +776,7 @@ export class AIStudioFolderManager {
     pinBtn.className = 'gv-folder-pin-btn';
     pinBtn.title = folder.pinned ? this.t('folder_unpin') : this.t('folder_pin');
     try {
-      (pinBtn as any).dataset.state = folder.pinned ? 'pinned' : 'unpinned';
+      pinBtn.dataset.state = folder.pinned ? 'pinned' : 'unpinned';
     } catch {}
     pinBtn.appendChild(this.createIcon('push_pin'));
     pinBtn.addEventListener('click', () => {
@@ -803,7 +835,7 @@ export class AIStudioFolderManager {
 
     const icon = document.createElement('span');
     icon.className = 'gv-conversation-icon google-symbols';
-    (icon as any).dataset.icon = 'chat';
+    icon.dataset.icon = 'chat';
     icon.textContent = 'chat';
     row.appendChild(icon);
 
@@ -905,7 +937,7 @@ export class AIStudioFolderManager {
     st.left = `${ev.clientX}px`;
     st.zIndex = String(2147483647);
     st.display = 'flex';
-    (st as any).flexDirection = 'column';
+    st.flexDirection = 'column';
     document.body.appendChild(menu);
     const onClickAway = (e: MouseEvent) => {
       if (e.target instanceof Node && !menu.contains(e.target)) {
@@ -1138,11 +1170,21 @@ export class AIStudioFolderManager {
     const root = this.historyRoot;
     if (!root) return;
     const observer = new MutationObserver((mutations) => {
-      if (!mutationAddsPromptLinks(mutations)) return;
-      this.schedulePromptListBinding();
+      if (mutationAddsPromptLinks(mutations)) {
+        this.schedulePromptListBinding();
+      }
+      if (mutationMayAffectPromptTitles(mutations)) {
+        this.schedulePromptTitleSync();
+      }
     });
     try {
-      observer.observe(root, { childList: true, subtree: true });
+      observer.observe(root, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['title', 'aria-label', 'href'],
+      });
     } catch {}
     this.cleanupFns.push(() => {
       try {
@@ -1151,6 +1193,10 @@ export class AIStudioFolderManager {
       if (this.promptListBindTimer !== null) {
         clearTimeout(this.promptListBindTimer);
         this.promptListBindTimer = null;
+      }
+      if (this.promptTitleSyncTimer !== null) {
+        clearTimeout(this.promptTitleSyncTimer);
+        this.promptTitleSyncTimer = null;
       }
     });
 
@@ -1179,6 +1225,85 @@ export class AIStudioFolderManager {
       this.promptListBindTimer = null;
       this.bindDraggablesInPromptList();
     }, PROMPT_LIST_BIND_DEBOUNCE_MS);
+  }
+
+  private schedulePromptTitleSync(): void {
+    if (!this.hasStoredConversations()) return;
+    if (this.promptTitleSyncTimer !== null) return;
+
+    this.promptTitleSyncTimer = window.setTimeout(() => {
+      this.promptTitleSyncTimer = null;
+      void this.runPromptTitleSync();
+    }, PROMPT_TITLE_SYNC_DEBOUNCE_MS);
+  }
+
+  private async runPromptTitleSync(): Promise<void> {
+    if (this.promptTitleSyncInProgress) return;
+
+    this.promptTitleSyncInProgress = true;
+    try {
+      await this.syncConversationTitlesFromPromptList();
+    } finally {
+      this.promptTitleSyncInProgress = false;
+    }
+  }
+
+  private hasStoredConversations(): boolean {
+    return Object.values(this.data.folderContents).some(
+      (conversations) => conversations.length > 0,
+    );
+  }
+
+  private extractPromptTitle(anchor: HTMLAnchorElement | null): string | null {
+    if (!anchor) return null;
+
+    const aria = normalizeText(anchor.getAttribute('aria-label'));
+    if (aria) return aria;
+
+    const title = normalizeText(anchor.getAttribute('title'));
+    if (title) return title;
+
+    const text = normalizeText(anchor.textContent);
+    if (text) return text;
+
+    return null;
+  }
+
+  private getPromptTitleFromNative(conversationId: string): string | null {
+    const selectors = [
+      `a.prompt-link[href*="/prompts/${conversationId}"]`,
+      `a[href*="/prompts/${conversationId}"]`,
+      `a.name-btn[href*="/prompts/${conversationId}"]`,
+    ];
+
+    for (const selector of selectors) {
+      const anchor = document.querySelector(selector) as HTMLAnchorElement | null;
+      const title = this.extractPromptTitle(anchor);
+      if (title) return title;
+    }
+
+    return null;
+  }
+
+  private async syncConversationTitlesFromPromptList(): Promise<void> {
+    if (!this.hasStoredConversations()) return;
+
+    let hasUpdates = false;
+    for (const conversations of Object.values(this.data.folderContents)) {
+      for (const conversation of conversations) {
+        if (conversation.customTitle) continue;
+        const nativeTitle = this.getPromptTitleFromNative(conversation.conversationId);
+        if (!nativeTitle || nativeTitle === conversation.title) continue;
+        conversation.title = nativeTitle;
+        conversation.updatedAt = now();
+        hasUpdates = true;
+      }
+    }
+
+    if (!hasUpdates) return;
+
+    await this.save();
+    this.render();
   }
 
   private resolvePromptAnchorFromHost(hostEl: HTMLElement): HTMLAnchorElement | null {
@@ -1255,8 +1380,8 @@ export class AIStudioFolderManager {
       const anchor = a as HTMLAnchorElement;
       const hostEl = this.resolvePromptDragHost(anchor);
       anchor.dataset.gvDragBound = '1';
-      if (!(hostEl as any)._gvDragBound) {
-        (hostEl as any)._gvDragBound = true;
+      if (!(hostEl as Element & { _gvDragBound?: boolean })._gvDragBound) {
+        (hostEl as Element & { _gvDragBound?: boolean })._gvDragBound = true;
         hostEl.draggable = true;
         if (!hostEl.style.cursor) {
           hostEl.style.cursor = 'grab';
@@ -1337,8 +1462,8 @@ export class AIStudioFolderManager {
       if (!anchor) return;
 
       // Skip if already bound
-      if ((tr as any)._gvLibraryDragBound) return;
-      (tr as any)._gvLibraryDragBound = true;
+      if ((tr as Element & { _gvLibraryDragBound?: boolean })._gvLibraryDragBound) return;
+      (tr as Element & { _gvLibraryDragBound?: boolean })._gvLibraryDragBound = true;
 
       tr.draggable = true;
       tr.style.cursor = 'grab';
@@ -1750,7 +1875,7 @@ export class AIStudioFolderManager {
           await this.save();
           this.render();
           alert(this.t('folder_import_success') || 'Imported');
-        } catch (e) {
+        } catch {
           alert(this.t('folder_import_error') || 'Import failed');
         }
       },
@@ -1820,7 +1945,7 @@ export class AIStudioFolderManager {
    * Attempt to recover data when load() fails
    * Uses multi-layer backup system: primary > emergency > beforeUnload > in-memory
    */
-  private attemptDataRecovery(error: unknown): void {
+  private attemptDataRecovery(_error: unknown): void {
     console.warn('[AIStudioFolderManager] Attempting data recovery after load failure');
 
     // Step 1: Try to restore from localStorage backups (primary, emergency, beforeUnload)
@@ -2161,11 +2286,11 @@ export class AIStudioFolderManager {
       const folders = this.data;
 
       // Get prompts from storage (shared with Gemini)
-      let prompts: any[] = [];
+      let prompts: PromptItem[] = [];
       try {
         const storageResult = await chrome.storage.local.get(['gvPromptItems']);
         if (storageResult.gvPromptItems) {
-          prompts = storageResult.gvPromptItems;
+          prompts = storageResult.gvPromptItems as PromptItem[];
         }
       } catch (err) {
         console.warn('[AIStudioFolderManager] Could not get prompts for upload:', err);
@@ -2213,7 +2338,7 @@ export class AIStudioFolderManager {
             error?: string;
             data?: {
               folders?: { data?: FolderData };
-              prompts?: { items?: any[] };
+              prompts?: { items?: PromptItem[] };
             };
           }
         | undefined;
@@ -2240,11 +2365,11 @@ export class AIStudioFolderManager {
       );
 
       // Get local prompts for merge (shared with Gemini)
-      let localPrompts: any[] = [];
+      let localPrompts: PromptItem[] = [];
       try {
         const storageResult = await chrome.storage.local.get(['gvPromptItems']);
         if (storageResult.gvPromptItems) {
-          localPrompts = storageResult.gvPromptItems;
+          localPrompts = storageResult.gvPromptItems as PromptItem[];
         }
       } catch (err) {
         console.warn('[AIStudioFolderManager] Could not get local prompts for merge:', err);
@@ -2286,8 +2411,8 @@ export class AIStudioFolderManager {
   /**
    * Merge prompts by ID (simple deduplication)
    */
-  private mergePromptsData(local: any[], cloud: any[]): any[] {
-    const promptMap = new Map<string, any>();
+  private mergePromptsData(local: PromptItem[], cloud: PromptItem[]): PromptItem[] {
+    const promptMap = new Map<string, PromptItem>();
 
     // Add local prompts first
     local.forEach((p) => {
