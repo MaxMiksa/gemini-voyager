@@ -29,19 +29,27 @@ describe('prompt trigger topbar placement', () => {
     expect(trigger.classList.contains('gv-pm-trigger-inline')).toBe(true);
   });
 
-  it('falls back to actions menu button when share is not available', () => {
-    const topbar = document.createElement('div');
-    const trigger = document.createElement('button');
+  it('uses Gemini title row instead of generic actions-menu buttons on homepage', () => {
+    const sidebar = document.createElement('div');
     const actions = document.createElement('button');
     actions.setAttribute('data-test-id', 'actions-menu-button');
-    topbar.appendChild(actions);
+    sidebar.appendChild(actions);
+    document.body.appendChild(sidebar);
+
+    const topbar = document.createElement('div');
+    const title = document.createElement('h1');
+    title.textContent = 'Gemini';
+    topbar.appendChild(title);
     document.body.appendChild(topbar);
+
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
 
     const placed = placePromptTriggerInTopbar(trigger, document);
 
     expect(placed).toBe(true);
-    expect(topbar.firstElementChild).toBe(trigger);
-    expect(trigger.nextElementSibling).toBe(actions);
+    expect(title.nextElementSibling).toBe(trigger);
+    expect(trigger.classList.contains('gv-pm-trigger-title-inline')).toBe(true);
   });
 
   it('falls back to Gemini title row when action buttons are not available', () => {
@@ -80,6 +88,18 @@ describe('prompt trigger topbar placement', () => {
     expect(placed).toBe(true);
     expect(trigger.nextElementSibling).toBe(share);
     expect(trigger.classList.contains('gv-pm-trigger-title-inline')).toBe(false);
+  });
+
+  it('returns false when only generic actions-menu button exists', () => {
+    const actions = document.createElement('button');
+    actions.setAttribute('data-test-id', 'actions-menu-button');
+    document.body.appendChild(actions);
+
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+
+    expect(placePromptTriggerInTopbar(trigger, document)).toBe(false);
+    expect(trigger.parentElement).toBe(document.body);
   });
 
   it('returns false if no anchor button exists', () => {

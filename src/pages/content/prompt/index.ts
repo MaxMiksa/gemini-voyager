@@ -59,7 +59,6 @@ const ID = {
 const LATEST_VERSION_CACHE_KEY = 'gvLatestVersionCache';
 const LATEST_VERSION_MAX_AGE = 1000 * 60 * 60 * 6; // 6 hours
 const GEMINI_SHARE_SELECTOR = '[data-test-id="share-button"]';
-const GEMINI_ACTIONS_MENU_SELECTOR = '[data-test-id="actions-menu-button"]';
 const GEMINI_HOME_TITLE_SELECTORS = [
   'main h1',
   'main [role="heading"][aria-level="1"]',
@@ -77,8 +76,6 @@ export function placePromptTriggerInTopbar(
   root: ParentNode = document,
 ): boolean {
   const shareButton = root.querySelector<HTMLElement>(GEMINI_SHARE_SELECTOR);
-  const fallbackButton = root.querySelector<HTMLElement>(GEMINI_ACTIONS_MENU_SELECTOR);
-  const anchor = shareButton ?? fallbackButton;
 
   const placeAsInline = (container: HTMLElement, before: HTMLElement | null = null): void => {
     trigger.classList.add('gv-pm-trigger-inline');
@@ -95,9 +92,9 @@ export function placePromptTriggerInTopbar(
     }
   };
 
-  if (anchor && anchor.parentElement) {
+  if (shareButton && shareButton.parentElement) {
     trigger.classList.remove('gv-pm-trigger-title-inline');
-    placeAsInline(anchor.parentElement, anchor);
+    placeAsInline(shareButton.parentElement, shareButton);
     return true;
   }
 
